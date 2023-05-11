@@ -23,7 +23,7 @@
             <info-block :title="project.investorCount + ' 人'" description="参投人数"></info-block>
           </el-col>
           <el-col :span="8">
-            <info-block :title="project.investorCount + ' ETH'" description="已募资金额"></info-block>
+            <info-block :title="project.balance + ' ETH'" description="已募资金额"></info-block>
           </el-col>
         </el-row>
         <el-form :inline="true" :model="contributeForm" class="contribute-form">
@@ -52,7 +52,7 @@
           <el-table-column prop="voteStatus" label="投票状态" width="100">
           </el-table-column>
           <el-table-column fixed="right" label="操作" width="200">
-            <template slot-scope="scope">
+            <template #default="scope">
               <el-button v-if="scope.row.canApprove" @click="approvePayment(scope.$index)"
                 :loading="approveState.loading === scope.$index" type="text" size="small">投赞成票</el-button>
               <el-button v-if="scope.row.canDoPayment" @click="doPayment(scope.$index)"
@@ -109,16 +109,16 @@ const payments = await Promise.all(tasks);
 const project = {
   address: route.params.address,
   description,
-  minInvest: web3.utils.fromWei(minInvest, 'ether'),
-  maxInvest: web3.utils.fromWei(maxInvest, 'ether'),
-  goal: web3.utils.fromWei(goal, 'ether'),
-  balance: web3.utils.fromWei(balance, 'ether'),
+  minInvest: web3.utils.fromWei(minInvest.toString(), 'ether'),
+  maxInvest: web3.utils.fromWei(maxInvest.toString(), 'ether'),
+  goal: web3.utils.fromWei(goal.toString(), 'ether'),
+  balance: web3.utils.fromWei(balance.toString(), 'ether'),
   investorCount,
   paymentCount,
   owner,
   progress: Math.ceil(balance / goal * 100),
   payments: payments.map(x => {
-    x.amount = `${web3.utils.fromWei(x.amount, 'ether')} ETH`;
+    x.amount = `${web3.utils.fromWei(x.amount.toString(), 'ether')} ETH`;
     x.voteStatus = `${x.voterCount}/${investorCount}`;
     x.canApprove = !x.completed;
     x.canDoPayment = !x.completed && x.voterCount / investorCount > 0.5;
@@ -139,21 +139,19 @@ const contributeProject = async () => {
   console.log({ amount, minInvest, maxInvest });
 
   // 字段合规检查
-  if (amount <= 0) {
-    setState(contributeForm, { errmsg: '投资金额必须大于0' });
-    return;
-  }
-  if (amount < minInvest) {
-    setState(contributeForm, { errmsg: '投资金额必须大于最小投资金额' });
-    return;
-  }
-  if (amount > maxInvest) {
-    setState(contributeForm, { errmsg: '投资金额必须小于最大投资金额' });
-    return;
-  }
+  // if (amount <= 0) {
+  //   return ElMessage.error('投资金额必须大于0')
+  // }
+  // if (amount < minInvest) {
+  //   return ElMessage.error('投资金额必须大于最小投资金额')
+  // }
+  // if (amount > maxInvest) {
+  //   console.log('amount', amount, 'maxInvest', maxInvest)
+  //   return ElMessage.error('投资金额必须小于最大投资金额')
+  // }
 
   try {
-    setState(contributeForm, { errmsg: '', loading: true });
+    contributeForm.value.loading = true
 
     // 获取账户
     const accounts = await web3.eth.getAccounts();
@@ -163,9 +161,12 @@ const contributeProject = async () => {
     const contract = Project(address);
     const result = await contract.methods
       .contribute()
-      .send({ from: owner, value: web3.utils.toWei(amount, 'ether'), gas: '5000000' });
+      .send({ from: owner, value: web3.utils.toWei(amount.toString(), 'ether'), gas: '6721975' });
 
-    setState(contributeForm, { errmsg: '投资成功', amount: 0, loading: false });
+    ElMessage.success('投资成功')
+    contributeForm.value.amount = 0
+    contributeForm.value.loading = false
+
     console.log(result);
 
     setTimeout(() => {
@@ -173,135 +174,67 @@ const contributeProject = async () => {
     }, 1000);
   } catch (err) {
     console.error(err);
-    setState(contributeForm, {
-      errmsg: err.message || err.toString,
-      loading: false,
-    });
+    ElMessage.error(err.message || err.toString)
+    contributeForm.value.loading = false
+  }
+}
+const doPayment = async (i: number) => {
+  let loading
+  try {
+    loading = ElLoading.service()
+    const accounts = await web3.eth.getAccounts()
+    const sender = accounts[0]
+
+    // 检查账户
+    if (sender !== project.owner) {
+      return ElMessage.error('只有管理员能发起资金支出请求')
+    }
+
+    const contract = Project(project.address as string)
+    const result = await contract.methods.doPayment(i).send({ from: sender, gas: '5000000' })
+
+    ElMessage.success('资金划转成功')
+
+    setTimeout(() => {
+        location.reload();
+      }, 1000);
+  } catch(err) {
+    console.error(err);
+    ElMessage.error(err.message || err.toString());
+  } finally {
+    loading?.close()
   }
 }
 
-</script>
+const approvePayment = async (i) => {
+  let loading
+  try {
+    loading = ElLoading.service()
 
-<script lang="ts">
-// import web3 from '../../../libs/web3';
-// import Project from '../../../libs/project';
-// import InfoBlock from '../../../components/InfoBlock';
+    const accounts = await web3.eth.getAccounts();
+    const sender = accounts[0];
 
-// export default {
-//   watchQuery: ['page'],
+    const contract = Project(project.address as string);
+    const isInvestor = await contract.methods.investors(sender).call();
+    if (!isInvestor) {
+      return ElMessage.error('只有投资人才有权投票')
+    }
 
-//   methods: {
-//     setState(key, values) {
-//       this[key] = Object.assign({}, this[key], values || {});
-//     },
+    const result = await contract.methods.approvePayment(i).send({ from: sender, gas: '5000000' });
 
-//     async contributeProject() {
-//       console.log('contributeProject', this.contributeForm);
+    window.alert('投票成功');
 
-//       const { amount } = this.contributeForm;
-//       const { minInvest, maxInvest, address } = this.project;
+    setTimeout(() => {
+      location.reload();
+    }, 1000);
+  } catch (err) {
+    console.error(err);
+    window.alert(err.message || err.toString());
+  } finally {
+    loading?.close()
+  }
+}
 
-//       console.log({ amount, minInvest, maxInvest });
-
-//       // 字段合规检查
-//       if (amount <= 0) {
-//         this.setState('contributeForm', { errmsg: '投资金额必须大于0' });
-//         return;
-//       }
-//       if (amount < minInvest) {
-//         this.setState('contributeForm', { errmsg: '投资金额必须大于最小投资金额' });
-//         return;
-//       }
-//       if (amount > maxInvest) {
-//         this.setState('contributeForm', { errmsg: '投资金额必须小于最大投资金额' });
-//         return;
-//       }
-
-//       try {
-//         this.setState('contributeForm', { errmsg: '', loading: true });
-
-//         // 获取账户
-//         const accounts = await web3.eth.getAccounts();
-//         const owner = accounts[0];
-
-//         // 发起转账
-//         const contract = Project(address);
-//         const result = await contract.methods
-//           .contribute()
-//           .send({ from: owner, value: web3.utils.toWei(amount, 'ether'), gas: '5000000' });
-
-//         this.setState('contributeForm', { errmsg: '投资成功', amount: 0, loading: false });
-//         console.log(result);
-
-//         setTimeout(() => {
-//           location.reload();
-//         }, 1000);
-//       } catch (err) {
-//         console.error(err);
-//         this.setState('contributeForm', {
-//           errmsg: err.message || err.toString,
-//           loading: false,
-//         });
-//       }
-//     },
-
-//     async approvePayment(i) {
-//       try {
-//         this.setState('approveState', { loading: true });
-
-//         const accounts = await web3.eth.getAccounts();
-//         const sender = accounts[0];
-
-//         const contract = Project(this.project.address);
-//         const isInvestor = await contract.methods.investors(sender).call();
-//         if (!isInvestor) {
-//           return window.alert('只有投资人才有权投票');
-//         }
-
-//         const result = await contract.methods.approvePayment(i).send({ from: sender, gas: '5000000' });
-
-//         window.alert('投票成功');
-
-//         setTimeout(() => {
-//           location.reload();
-//         }, 1000);
-//       } catch (err) {
-//         console.error(err);
-//         window.alert(err.message || err.toString());
-//       } finally {
-//         this.setState('approveState', { loading: false });
-//       }
-//     },
-
-//     async doPayment(i) {
-//       try {
-//         this.setState('doPaymentState', { loading: true });
-
-//         const accounts = await web3.eth.getAccounts();
-//         const sender = accounts[0];
-
-//         // 检查账户
-//         if (sender !== this.project.owner) {
-//           return window.alert('只有管理员能发起资金支出请求');
-//         }
-
-//         const contract = Project(this.project.address);
-//         const result = await contract.methods.doPayment(i).send({ from: sender, gas: '5000000' });
-
-//         window.alert('资金划转成功');
-
-//         setTimeout(() => {
-//           location.reload();
-//         }, 1000);
-//       } catch (err) {
-//         console.error(err);
-//         window.alert(err.message || err.toString());
-//       } finally {
-//         this.setState('doPaymentState', { loading: false });
-//       }
-//     },
-//   },
-// };
 </script>
 
 <style>

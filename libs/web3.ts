@@ -24,7 +24,7 @@ import detectEthereumProvider from '@metamask/detect-provider';
 console.log('123123123')
 // }
 
-let web3
+let web3: Web3
 // console.log('window1111111', window)
 // if (provider && window !== 'undefined') {
 //   if (provider !== window.ethereum) {
@@ -49,7 +49,8 @@ if (typeof window !== 'undefined') {
     web3 = new Web3(new Web3.providers.HttpProvider('https://sepolia.infura.io/v3/2d0eee03a6e64721a50658bfb2fa28cf'))  
   }
 } else {
-  web3 = new Web3(new Web3.providers.HttpProvider('https://sepolia.infura.io/v3/2d0eee03a6e64721a50658bfb2fa28cf'))
+  // web3 = new Web3(new Web3.providers.HttpProvider('https://sepolia.infura.io/v3/2d0eee03a6e64721a50658bfb2fa28cf'))
+  web3 = new Web3(new Web3.providers.HttpProvider('http://127.0.0.1:7545'))
 }
 
 export default web3
