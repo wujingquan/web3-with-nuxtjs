@@ -23,34 +23,16 @@ import detectEthereumProvider from '@metamask/detect-provider';
 //   web3 = new Web3(new Web3.providers.HttpProvider('https://sepolia.infura.io/CqCd0QgCozHBEk19ub2M'))
 console.log('123123123')
 // }
+import Web3 from 'web3';
 
-let web3: Web3
-// console.log('window1111111', window)
-// if (provider && window !== 'undefined') {
-//   if (provider !== window.ethereum) {
-//     console.error('Do you have multiple wallets installed?');
-//   } else {
-//     web3 = new Web3(provider)
-//   }
-// } else {
-//   web3 = new Web3(new Web3.providers.HttpProvider('https://sepolia.infura.io/CqCd0QgCozHBEk19ub2M'))
-// }
-console.log('444444444444')
-if (typeof window !== 'undefined') {
-  console.log('abc')
-  const provider = await detectEthereumProvider();
-  if (provider) {
-    if (provider === window.ethereum) {
-      web3 = new Web3(provider)
-    } else {
-      console.error('Do you have multiple wallets installed?');
-    }
-  } else {
-    web3 = new Web3(new Web3.providers.HttpProvider('https://sepolia.infura.io/v3/2d0eee03a6e64721a50658bfb2fa28cf'))  
-  }
+let web3;
+// 浏览器环境且已经安装了 Metamask
+if (typeof window !== 'undefined' && typeof window.web3 !== 'undefined') {
+  web3 = new Web3(window.web3.currentProvider);
+
+  // 服务器环境或者没有安装 Metamask
 } else {
-  // web3 = new Web3(new Web3.providers.HttpProvider('https://sepolia.infura.io/v3/2d0eee03a6e64721a50658bfb2fa28cf'))
-  web3 = new Web3(new Web3.providers.HttpProvider('http://127.0.0.1:7545'))
+  web3 = new Web3(new Web3.providers.HttpProvider('http://127.0.0.1:7545'));
 }
 
-export default web3
+export default web3;
